@@ -191,17 +191,22 @@ display state = do
     multMatrix =<< (toGLmat $ cameraMatrix state)
     
     color $ Color3 0.8 0.8 (1 :: GLfloat)
-    renderObject Solid $ Sphere' 1.0 12 8
+    renderObject Solid $ Sphere' 5.0 12 8
     
-    let solidM :: MFace -> IO ()
-        solidM (TriF a b c) = mapM_ ptM [a,b,c]
-        solidM (QuadF a b c d) = mapM_ ptM [a,b,c,d]
+    let triM, quadM :: MFace -> IO ()
+        triM (TriF a b c) = mapM_ ptM [a,b,c]
+        triM _ = return ()
+        quadM (QuadF a b c d) = mapM_ ptM [a,b,c,d]
+        quadM _ = return ()
+        
         ptM :: VN -> IO ()
         ptM ((vx,vy,vz),(nx,ny,nz)) = do
             color $ Color4 1 1 1 (1 :: GLfloat)
             normal $ Normal3 nx ny nz
             vertex $ Vertex3 vx vy vz
-    renderPrimitive Triangles $ mapM_ solidM (soyuzSolid state)
+        
+    renderPrimitive Triangles $ mapM_ triM (soyuzSolid state)
+    renderPrimitive Quads $ mapM_ quadM (soyuzSolid state)
     
     flush
     swapBuffers
