@@ -3,20 +3,19 @@ module Main where
 
 import Graphics.UI.GLUT hiding (Matrix(..),newMatrix,rotate,translate)
 import qualified Graphics.UI.GLUT as GL
+import qualified Graphics.GD as GD
+
 import Numeric.LinearAlgebra.Transform
 import Numeric.LinearAlgebra hiding (scale,reshape)
 
 import Control.Concurrent (newMVar,takeMVar,putMVar)
 import qualified Data.Set as Set
 
+import Control.Monad (liftM2)
 import Control.Applicative ((<$>),(<*>))
-import Control.Arrow (first,second,(&&&),(***))
-import Control.Monad (when,forM_,join)
-import Control.Monad.Error (runErrorT)
 import Data.List.Split (splitOn)
 
-import System.Process (system)
-import System.Exit (ExitCode(..))
+import Foreign (newArray)
 
 type V = (GLfloat,GLfloat,GLfloat)
 type VN = (V,V)
@@ -68,6 +67,23 @@ readObj file = do
             g (i,j) = (verts !! i, norms !! j)
     return faces
 
+readTex :: FilePath -> IO TexData
+readTex file = do
+    im <- GD.loadPngFile file
+    (width,height) <- GD.imageSize im
+    let
+        colorize :: GD.Color -> Color4 GLfloat
+        colorize i = Color4 r g b 1.0 where
+            r = fromIntegral $ i `div` (256 * 256)
+            g = fromIntegral $ (i `div` 256) `mod` 256
+            b = fromIntegral $ i `mod` 256
+        getPix :: GD.Point -> IO (Color4 GLfloat)
+        getPix (x,y) = colorize <$> GD.getPixel (x,y) im
+         
+        xy = liftM2 (,) [0..width-1] [0..height-1]
+    
+    (PixelData RGBA Float <$>) . newArray =<< mapM getPix xy
+
 main :: IO ()
 main = do
     (_, argv) <- getArgsAndInitialize
@@ -79,7 +95,7 @@ main = do
     depthFunc $= Nothing
     
     shadeModel $= Smooth
-    lighting $= Enabled
+    lighting $= Disabled
     ambient (Light 0) $= Color4 0.1 0.1 0.1 (1 :: GLfloat)
     diffuse (Light 0) $= Color4 0.8 0.8 0.8 (1 :: GLfloat)
     light (Light 0) $= Enabled
