@@ -197,8 +197,10 @@ display state = do
         solidM (TriF a b c) = mapM_ ptM [a,b,c]
         solidM (QuadF a b c d) = mapM_ ptM [a,b,c,d]
         ptM :: VN -> IO ()
-        ptM (vert,norm) = do
+        ptM ((vx,vy,vz),(nx,ny,nz)) = do
             color $ Color4 1 1 1 (1 :: GLfloat)
+            normal $ Normal3 nx ny nz
+            vertex $ Vertex3 vx vy vz
     renderPrimitive Triangles $ mapM_ solidM (soyuzSolid state)
     
     flush
