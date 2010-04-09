@@ -216,8 +216,9 @@ display state = do
         triM (TriF a b c) = mapM_ ptM [a,b,c]
         triM _ = return ()
         
-        quadM (QuadF a b c d) = forM_ (zip [0..] [a,b,c,d])
-            $ \(i,vn) -> texCoord (coords !! i) >> ptM vn
+        --quadM (QuadF a b c d) = forM_ (zip [0..] [a,b,c,d])
+            -- $ \(i,vn) -> texCoord (coords !! i) >> ptM vn
+        quadM (QuadF a b c d) = mapM_ ptM [a,b,c,d]
         quadM _ = return ()
         
         coords = [
@@ -231,6 +232,7 @@ display state = do
         ptM ((vx,vy,vz),(nx,ny,nz)) = do
             color $ Color4 1 1 1 (1 :: GLfloat)
             normal $ Normal3 nx ny nz
+            texCoord $ TexCoord3 nx ny nz
             vertex $ Vertex3 vx vy vz
      
     withTexture2D (soyuzTex state) $ do
