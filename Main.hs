@@ -58,7 +58,7 @@ main = do
         keySet = Set.empty,
         mousePos = (0,0),
         mousePrevPos = (0,0),
-        cameraMatrix = ident 4
+        cameraMatrix = translation $ 3 |> [0,0,-4]
     }
     
     actionOnWindowClose $= MainLoopReturns
@@ -78,7 +78,7 @@ main = do
                 mousePos = (fromIntegral posX, fromIntegral posY),
                 mousePrevPos = mousePos state
             }
-        putMVar stateVar =<< (f <$> takeMVar stateVar)
+        putMVar stateVar =<< (f <$>) . onMouseMove True =<< takeMVar stateVar
     
     (passiveMotionCallback $=) . Just $ \pos -> do
         let Position posX posY = pos
@@ -86,7 +86,7 @@ main = do
                 mousePos = (fromIntegral posX, fromIntegral posY),
                 mousePrevPos = mousePos state
             }
-        putMVar stateVar =<< (f <$> takeMVar stateVar)
+        putMVar stateVar =<< (f <$>) . onMouseMove False =<< takeMVar stateVar
     
     (displayCallback $=) $ do
         state <- display =<< takeMVar stateVar
@@ -121,38 +121,36 @@ keyboard state key keyState modifiers pos = state'
             Up -> Set.delete
             Down -> Set.insert
 
-navigate :: State -> State
-navigate state = state { cameraMatrix = matF (cameraMatrix state) }
+onMouseMove :: Bool -> State -> IO State
+onMouseMove True state = return
+    $ state { cameraMatrix = matF (cameraMatrix state) }
     where
         mpos = mousePos state
         ppos = mousePrevPos state
+        dt = 0.002
+        dx = dt * (fromIntegral $ fst ppos - fst mpos)
+        dy = dt * (fromIntegral $ snd ppos - snd mpos)
+        matF mat = rotation (AxisX dy) <> rotation (AxisY dx) <> mat
+onMouseMove False state = return state
+
+navigate :: State -> State
+navigate state = state { cameraMatrix = matF (cameraMatrix state) }
+    where
         keys = Set.elems $ keySet state
+        matF mat = case keys of
+            [] -> mat
+            _ -> translation tsum <> mat
+                where tsum = sum $ map ((3 |>) . tKey) keys
+        dt = 0.01
         
-        matF = \mat -> ($ mat) $ case keys of
-            [] -> id
-            _ -> ((foldl1 (<>) $ map rKey keys) <> tMat <>)
-        tMat = translation (sum $ map tKey keys)
-        
-        dt = 0.1
-        drx = -0.1 * (fromIntegral $ fst mpos - fst ppos)
-        dry = -0.1 * (fromIntegral $ snd mpos - snd ppos)
-        
-        tKey :: Key -> Vector Double
-        tKey (Char 'w') = 3 |> [0,0,dt] -- forward
-        tKey (Char 's') = 3 |> [0,0,-dt] -- back
-        tKey (Char 'a') = 3 |> [dt,0,0] -- strafe left
-        tKey (Char 'd') = 3 |> [-dt,0,0] -- strafe right
-        tKey (Char 'q') = 3 |> [0,-dt,0] -- up
-        tKey (Char 'z') = 3 |> [0,dt,0] -- down
-        tKey _ = 3 |> [0,0,0]
-        
-        rKey :: Key -> Matrix Double
-        rKey (MouseButton LeftButton) = r1 <> r2
-            where
-                r1 = rotation (AxisX dry)
-                r2 = rotation (AxisY drx)
-        rKey (MouseButton RightButton) = rotation (AxisZ drx)
-        rKey _ = ident 4
+        tKey :: Key -> [Double]
+        tKey (Char 'w') = [0,0,dt] -- forward
+        tKey (Char 's') = [0,0,-dt] -- back
+        tKey (Char 'a') = [dt,0,0] -- strafe left
+        tKey (Char 'd') = [-dt,0,0] -- strafe right
+        tKey (Char 'q') = [0,-dt,0] -- up
+        tKey (Char 'z') = [0,dt,0] -- down
+        tKey _ = [0,0,0]
 
 display :: State -> IO State
 display state = do
@@ -162,6 +160,9 @@ display state = do
     matrixMode $= Modelview 0
     loadIdentity
     multMatrix =<< (toGLmat $ cameraMatrix state)
+    
+    color $ Color3 0.8 0.8 (1 :: GLfloat)
+    renderObject Solid $ Sphere' 1.0 12 8
     
     flush
     swapBuffers
