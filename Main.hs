@@ -13,7 +13,7 @@ import Control.Applicative ((<$>),(<*>))
 import Control.Arrow (first,second,(&&&),(***))
 import Control.Monad (when,forM_,join)
 import Control.Monad.Error (runErrorT)
-import Data.Maybe (fromJust,isJust,isNothing)
+import Data.List.Split (splitOn)
 
 import System.Process (system)
 import System.Exit (ExitCode(..))
@@ -47,7 +47,27 @@ rotateM :: MatrixComponent c => c -> Vector3 c -> IO ()
 rotateM = GL.rotate
 
 readObj :: FilePath -> IO (SolidData,TexData)
-readObj file = undefined
+readObj file = do
+    rows <- map words . lines <$> readFile file
+    let
+        tup2 [x,y] = (x,y)
+        tup3 [x,y,z] = (x,y,z)
+        
+        verts, norms :: [V]
+        verts = map (tup3 . map read . tail) $ filter ((== "v") . head) rows
+        norms = map (tup3 . map read . tail) $ filter ((== "vn") . head) rows
+        
+        faceIx :: [[(Int,Int)]]
+        faceIx = map (map (tup2 . map (pred . read) . splitOn "//") . tail)
+            $ filter ((== "f") . head) rows
+        faces :: SolidData
+        faces = map f faceIx where
+            f [x,y,z] = TriF (g x) (g y) (g z)
+            g :: (Int,Int) -> (V,V)
+            g (i,j) = (verts !! i, norms !! j)
+    
+    print faces
+    return undefined
 
 main :: IO ()
 main = do
