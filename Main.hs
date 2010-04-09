@@ -149,7 +149,7 @@ main = do
         loadIdentity
         let as = fromIntegral w / fromIntegral h
             sa = recip as
-        perspective 60 as 0 10000
+        perspective 60 as 10000 0
     
     mainLoop
 
@@ -228,11 +228,14 @@ display state = do
                 TexCoord3 1 0 1
             ] :: [TexCoord3 GLfloat]
         
+        (texW,texH) = (fromIntegral $ fst size, fromIntegral $ snd size)
+        size = texSize (soyuzTex state)
+        
         ptM :: VN -> IO ()
         ptM ((vx,vy,vz),(nx,ny,nz)) = do
             color $ Color4 1 1 1 (1 :: GLfloat)
             normal $ Normal3 nx ny nz
-            texCoord $ TexCoord3 nx ny nz
+            texCoord $ TexCoord2 (vx / texW) (vy / texH + 0.3)
             vertex $ Vertex3 vx vy vz
      
     withTexture2D (soyuzTex state) $ do
