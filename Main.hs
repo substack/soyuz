@@ -22,14 +22,16 @@ type V = (GLfloat,GLfloat,GLfloat)
 type VN = (V,V)
 data MFace = TriF VN VN VN | QuadF VN VN VN VN
     deriving Show
+type SolidData = [MFace]
+type TexData = PixelData (Color4 GLfloat)
 
 data State = State {
     keySet :: Set.Set Key,
     mousePos :: (Int,Int),
     mousePrevPos :: (Int,Int),
     cameraMatrix :: Matrix Double,
-    soyuzTex :: PixelData (Color4 GLfloat),
-    soyuzSolid :: [MFace]
+    soyuzTex :: TexData,
+    soyuzSolid :: SolidData
 } deriving Show
 
 toGLmat :: (Real e, Num (Matrix e), Linear Matrix e)
@@ -44,6 +46,9 @@ translateM = GL.translate
 rotateM :: MatrixComponent c => c -> Vector3 c -> IO ()
 rotateM = GL.rotate
 
+readObj :: FilePath -> IO (SolidData,TexData)
+readObj file = undefined
+
 main :: IO ()
 main = do
     (_, argv) <- getArgsAndInitialize
@@ -54,11 +59,15 @@ main = do
     depthMask $= Enabled
     lighting $= Disabled
     
+    (solid,tex) <- readObj "soyuz-u.obj"
+    
     stateVar <- newMVar $ State {
         keySet = Set.empty,
         mousePos = (0,0),
         mousePrevPos = (0,0),
-        cameraMatrix = translation $ 3 |> [0,0,-4]
+        cameraMatrix = translation $ 3 |> [0,0,-4],
+        soyuzTex = tex,
+        soyuzSolid = solid
     }
     
     actionOnWindowClose $= MainLoopReturns
