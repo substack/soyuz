@@ -46,7 +46,7 @@ translateM = GL.translate
 rotateM :: MatrixComponent c => c -> Vector3 c -> IO ()
 rotateM = GL.rotate
 
-readObj :: FilePath -> IO (SolidData,TexData)
+readObj :: FilePath -> IO SolidData
 readObj file = do
     rows <- map words . lines <$> readFile file
     let
@@ -63,11 +63,10 @@ readObj file = do
         faces :: SolidData
         faces = map f faceIx where
             f [x,y,z] = TriF (g x) (g y) (g z)
+            f [x,y,z,w] = QuadF (g x) (g y) (g z) (g w)
             g :: (Int,Int) -> (V,V)
             g (i,j) = (verts !! i, norms !! j)
-    
-    print faces
-    return undefined
+    return faces
 
 main :: IO ()
 main = do
@@ -79,7 +78,8 @@ main = do
     depthMask $= Enabled
     lighting $= Disabled
     
-    (solid,tex) <- readObj "soyuz-u.obj"
+    solid <- readObj "soyuz-u.obj"
+    let tex = undefined
     
     stateVar <- newMVar $ State {
         keySet = Set.empty,
@@ -192,6 +192,14 @@ display state = do
     
     color $ Color3 0.8 0.8 (1 :: GLfloat)
     renderObject Solid $ Sphere' 1.0 12 8
+    
+    let solidM :: MFace -> IO ()
+        solidM (TriF a b c) = mapM_ ptM [a,b,c]
+        solidM (QuadF a b c d) = mapM_ ptM [a,b,c,d]
+        ptM :: VN -> IO ()
+        ptM (vert,norm) = do
+            color $ Color4 1 1 1 (1 :: GLfloat)
+    renderPrimitive Triangles $ mapM_ solidM (soyuzSolid state)
     
     flush
     swapBuffers
