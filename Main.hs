@@ -76,14 +76,13 @@ readTex file = do
     let
         colorize :: GD.Color -> Color4 GLfloat
         colorize i = Color4 r g b 1.0 where
-            r = fromIntegral $ i `div` (256 * 256)
-            g = fromIntegral $ (i `div` 256) `mod` 256
-            b = fromIntegral $ i `mod` 256
+            r = (fromIntegral $ i `div` (256 * 256)) / 256
+            g = (fromIntegral $ (i `div` 256) `mod` 256) / 256
+            b = (fromIntegral $ i `mod` 256) / 256
         getPix :: GD.Point -> IO (Color4 GLfloat)
         getPix (x,y) = colorize <$> GD.getPixel (x,y) im
          
         xy = liftM2 (,) [0..width-1] [0..height-1]
-    
     tData <- (PixelData RGBA Float <$>) . newArray =<< mapM getPix xy
     return $ Tex { texData = tData, texSize = (width,height) }
 
