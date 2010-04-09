@@ -11,7 +11,7 @@ import Numeric.LinearAlgebra hiding (scale,reshape)
 import Control.Concurrent (newMVar,takeMVar,putMVar)
 import qualified Data.Set as Set
 
-import Control.Monad (liftM2)
+import Control.Monad (liftM2,forM_)
 import Control.Applicative ((<$>),(<*>))
 import Data.List.Split (splitOn)
 
@@ -99,9 +99,6 @@ main = do
     
     shadeModel $= Smooth
     lighting $= Disabled
-    ambient (Light 0) $= Color4 0.1 0.1 0.1 (1 :: GLfloat)
-    diffuse (Light 0) $= Color4 0.8 0.8 0.8 (1 :: GLfloat)
-    light (Light 0) $= Enabled
     
     solid <- readObj "soyuz-u.obj"
     tex <- readTex "soyuz-u-texture.png"
@@ -214,20 +211,22 @@ display state = do
     matrixMode $= Modelview 0
     loadIdentity
     
-    let (cx:cy:cz:_) = toList $ (!! 3) $ toColumns $ inv (cameraMatrix state)
-        f = fromRational . toRational
-    position (Light 0) $= Vertex4 (f $ -3 + cx) (f $ 4 + cz) (f $ -5 + cy) 1
-    
     multMatrix =<< (toGLmat $ cameraMatrix state)
-    
-    color $ Color3 0.8 0.8 (1 :: GLfloat)
-    --renderObject Solid $ Sphere' 5.0 12 8
     
     let triM, quadM :: MFace -> IO ()
         triM (TriF a b c) = mapM_ ptM [a,b,c]
         triM _ = return ()
-        quadM (QuadF a b c d) = mapM_ ptM [a,b,c,d]
+        
+        quadM (QuadF a b c d) = forM_ (zip [0..] [a,b,c,d])
+            $ \(i,vn) -> texCoord (coords !! i) >> ptM vn
         quadM _ = return ()
+        
+        coords = [
+                TexCoord3 0 0 0,
+                TexCoord3 0 1 0,
+                TexCoord3 1 1 1,
+                TexCoord3 1 0 1
+            ] :: [TexCoord3 GLfloat]
         
         ptM :: VN -> IO ()
         ptM ((vx,vy,vz),(nx,ny,nz)) = do
@@ -247,10 +246,11 @@ display state = do
 
 withTexture2D :: Tex -> IO () -> IO ()
 withTexture2D Tex{ texData = tData, texSize = (w',h') } f = do
-    let (w,h) = (fromIntegral w', fromIntegral h')
+    let size = TextureSize2D (fromIntegral w') (fromIntegral h')
     
     -- save texture capability
     prevCap <- get $ texture Texture2D
+    
     rowAlignment Unpack $= 1
     texture Texture2D $= Enabled
     
@@ -260,7 +260,7 @@ withTexture2D Tex{ texData = tData, texSize = (w',h') } f = do
     textureWrapMode Texture2D S $= (Repeated, Repeat)
     textureWrapMode Texture2D T $= (Repeated, Repeat)
     textureFilter Texture2D $= ((Nearest, Nothing), Nearest)
-    texImage2D Nothing NoProxy 0  RGBA' (TextureSize2D w h) 0 tData
+    texImage2D Nothing NoProxy 0  RGBA' size 0 tData
     
     f -- user geometry
     
