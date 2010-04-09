@@ -234,15 +234,35 @@ display state = do
             color $ Color4 1 1 1 (1 :: GLfloat)
             normal $ Normal3 nx ny nz
             vertex $ Vertex3 vx vy vz
-        
-    renderPrimitive Triangles $ mapM_ triM (soyuzSolid state)
-    
-    
-    renderPrimitive Quads $ mapM_ quadM (soyuzSolid state)
-    
+     
+    withTexture2D (soyuzTex state) $ do
+        renderPrimitive Triangles $ mapM_ triM (soyuzSolid state)
+        renderPrimitive Quads $ mapM_ quadM (soyuzSolid state)
     
     flush
     swapBuffers
     postRedisplay Nothing
     
     return $ navigate state
+
+withTexture2D :: Tex -> IO () -> IO ()
+withTexture2D Tex{ texData = tData, texSize = (w',h') } f = do
+    let (w,h) = (fromIntegral w', fromIntegral h')
+    
+    -- save texture capability
+    prevCap <- get $ texture Texture2D
+    rowAlignment Unpack $= 1
+    texture Texture2D $= Enabled
+    
+    [tex] <- genObjectNames 1
+    textureBinding Texture2D $= Just tex
+    textureFunction $= Decal
+    textureWrapMode Texture2D S $= (Repeated, Repeat)
+    textureWrapMode Texture2D T $= (Repeated, Repeat)
+    textureFilter Texture2D $= ((Nearest, Nothing), Nearest)
+    texImage2D Nothing NoProxy 0  RGBA' (TextureSize2D w h) 0 tData
+    
+    f -- user geometry
+    
+    -- set texture capability back to whatever it was before
+    texture Texture2D $= prevCap
