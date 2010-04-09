@@ -76,7 +76,13 @@ main = do
     initialWindowPosition $= Position 0 0
     createWindow "soyuz-u"
     depthMask $= Enabled
-    lighting $= Disabled
+    depthFunc $= Nothing
+    
+    shadeModel $= Smooth
+    lighting $= Enabled
+    ambient (Light 0) $= Color4 0.1 0.1 0.1 (1 :: GLfloat)
+    diffuse (Light 0) $= Color4 0.8 0.8 0.8 (1 :: GLfloat)
+    light (Light 0) $= Enabled
     
     solid <- readObj "soyuz-u.obj"
     let tex = undefined
@@ -85,7 +91,7 @@ main = do
         keySet = Set.empty,
         mousePos = (0,0),
         mousePrevPos = (0,0),
-        cameraMatrix = translation $ 3 |> [0,0,-4],
+        cameraMatrix = translation $ 3 |> [0,0,-20],
         soyuzTex = tex,
         soyuzSolid = solid
     }
@@ -170,7 +176,7 @@ navigate state = state { cameraMatrix = matF (cameraMatrix state) }
             [] -> mat
             _ -> translation tsum <> mat
                 where tsum = sum $ map ((3 |>) . tKey) keys
-        dt = 0.01
+        dt = 0.1
         
         tKey :: Key -> [Double]
         tKey (Char 'w') = [0,0,dt] -- forward
@@ -188,10 +194,15 @@ display state = do
     
     matrixMode $= Modelview 0
     loadIdentity
+    
+    let (cx:cy:cz:_) = toList $ (!! 3) $ toColumns $ inv (cameraMatrix state)
+        f = fromRational . toRational
+    position (Light 0) $= Vertex4 (f $ -3 + cx) (f $ 4 + cz) (f $ -5 + cy) 1
+    
     multMatrix =<< (toGLmat $ cameraMatrix state)
     
     color $ Color3 0.8 0.8 (1 :: GLfloat)
-    renderObject Solid $ Sphere' 5.0 12 8
+    --renderObject Solid $ Sphere' 5.0 12 8
     
     let triM, quadM :: MFace -> IO ()
         triM (TriF a b c) = mapM_ ptM [a,b,c]
