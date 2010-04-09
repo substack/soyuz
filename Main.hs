@@ -23,13 +23,15 @@ data MFace = TriF VN VN VN | QuadF VN VN VN VN
     deriving Show
 type SolidData = [MFace]
 type TexData = PixelData (Color4 GLfloat)
+data Tex = Tex { texData :: TexData, texSize :: GD.Size }
+    deriving Show
 
 data State = State {
     keySet :: Set.Set Key,
     mousePos :: (Int,Int),
     mousePrevPos :: (Int,Int),
     cameraMatrix :: Matrix Double,
-    soyuzTex :: TexData,
+    soyuzTex :: Tex,
     soyuzSolid :: SolidData
 } deriving Show
 
@@ -67,7 +69,7 @@ readObj file = do
             g (i,j) = (verts !! i, norms !! j)
     return faces
 
-readTex :: FilePath -> IO TexData
+readTex :: FilePath -> IO Tex
 readTex file = do
     im <- GD.loadPngFile file
     (width,height) <- GD.imageSize im
@@ -82,7 +84,8 @@ readTex file = do
          
         xy = liftM2 (,) [0..width-1] [0..height-1]
     
-    (PixelData RGBA Float <$>) . newArray =<< mapM getPix xy
+    tData <- (PixelData RGBA Float <$>) . newArray =<< mapM getPix xy
+    return $ Tex { texData = tData, texSize = (width,height) }
 
 main :: IO ()
 main = do
@@ -101,7 +104,7 @@ main = do
     light (Light 0) $= Enabled
     
     solid <- readObj "soyuz-u.obj"
-    let tex = undefined
+    tex <- readTex "soyuz-u-texture.png"
     
     stateVar <- newMVar $ State {
         keySet = Set.empty,
@@ -233,7 +236,10 @@ display state = do
             vertex $ Vertex3 vx vy vz
         
     renderPrimitive Triangles $ mapM_ triM (soyuzSolid state)
+    
+    
     renderPrimitive Quads $ mapM_ quadM (soyuzSolid state)
+    
     
     flush
     swapBuffers
