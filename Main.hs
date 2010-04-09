@@ -18,11 +18,18 @@ import Data.Maybe (fromJust,isJust,isNothing)
 import System.Process (system)
 import System.Exit (ExitCode(..))
 
+type V = (GLfloat,GLfloat,GLfloat)
+type VN = (V,V)
+data MFace = TriF VN VN VN | QuadF VN VN VN VN
+    deriving Show
+
 data State = State {
     keySet :: Set.Set Key,
     mousePos :: (Int,Int),
     mousePrevPos :: (Int,Int),
-    cameraMatrix :: Matrix Double
+    cameraMatrix :: Matrix Double,
+    soyuzTex :: PixelData (Color4 GLfloat),
+    soyuzSolid :: [MFace]
 } deriving Show
 
 toGLmat :: (Real e, Num (Matrix e), Linear Matrix e)
@@ -154,6 +161,7 @@ display state = do
     
     matrixMode $= Modelview 0
     loadIdentity
+    multMatrix =<< (toGLmat $ cameraMatrix state)
     
     flush
     swapBuffers
