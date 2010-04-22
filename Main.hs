@@ -93,7 +93,7 @@ main = do
     initialWindowSize $= Size 400 300
     initialWindowPosition $= Position 0 0
     createWindow "soyuz-u"
-    depthMask $= Enabled
+    --depthMask $= Enabled
     depthFunc $= Nothing
     
     shadeModel $= Smooth
@@ -191,7 +191,7 @@ navigate state = state { cameraMatrix = matF (cameraMatrix state) }
             [] -> mat
             _ -> translation tsum <> mat
                 where tsum = sum $ map ((3 |>) . tKey) keys
-        dt = 0.1
+        dt = 0.5
         
         tKey :: Key -> [Double]
         tKey (Char 'w') = [0,0,dt] -- forward
@@ -216,8 +216,6 @@ display state = do
         triM (TriF a b c) = mapM_ ptM [a,b,c]
         triM _ = return ()
         
-        --quadM (QuadF a b c d) = forM_ (zip [0..] [a,b,c,d])
-            -- $ \(i,vn) -> texCoord (coords !! i) >> ptM vn
         quadM (QuadF a b c d) = mapM_ ptM [a,b,c,d]
         quadM _ = return ()
         
@@ -231,11 +229,30 @@ display state = do
         (texW,texH) = (fromIntegral $ fst size, fromIntegral $ snd size)
         size = texSize (soyuzTex state)
         
+        {-
+            $ perl -MList::AllUtils=max,min -nle'
+                BEGIN{ my @x, @y }
+                if (m/^v\s/) {
+                    my @xyz = m/(-?\d+\.\d+)/g;
+                    push @x, $xyz[0];
+                    push @y, $xyz[1];
+                }
+                END {
+                    print "x: ", min(@x), ", ", max(@x);
+                    print "y: ", min(@y), ", ", max(@y);
+                }' soyuz-u.obj
+            x: -1.574926, 1.597995
+            y: -6.345765, 11.325398
+        -}
         ptM :: VN -> IO ()
         ptM ((vx,vy,vz),(nx,ny,nz)) = do
             color $ Color4 1 1 1 (1 :: GLfloat)
             normal $ Normal3 nx ny nz
-            texCoord $ TexCoord2 (vx / texW) (vy / texH + 0.3)
+            let tx = (vx - xmin) / (xmax - xmin)
+                ty = (vy - ymin) / (ymax - ymin)
+                (xmin,xmax) = (-1.574926, 1.597995)
+                (ymin,ymax) = (-6.345765, 11.325398)
+            texCoord $ TexCoord2 tx ty
             vertex $ Vertex3 vx vy vz
      
     withTexture2D (soyuzTex state) $ do
