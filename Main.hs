@@ -13,18 +13,36 @@ import qualified Data.Set as Set
 
 import Control.Monad (liftM2,forM_)
 import Control.Applicative ((<$>),(<*>))
+import Control.Arrow ((&&&))
 import Data.List.Split (splitOn)
+import System.Random (randomRIO,randomRs,newStdGen)
 
 import Foreign (newArray)
 
 type V = (GLfloat,GLfloat,GLfloat)
 type VN = (V,V)
+
 data MFace = TriF VN VN VN | QuadF VN VN VN VN
     deriving Show
-type SolidData = [MFace]
+
+type Bound = (GLfloat,GLfloat)
+
+data SolidData = SolidData {
+    solidFaces :: [MFace],
+    solidBounds :: (Bound,Bound,Bound)
+} deriving Show
+
 type TexData = PixelData (Color4 GLfloat)
 data Tex = Tex { texData :: TexData, texSize :: GD.Size }
     deriving Show
+
+type Jet = [Segment]
+data Segment = Segment {
+    segmentRadius :: Float,
+    segmentAngle :: Float,
+    segmentOffset :: Float,
+    segmentZ :: Float
+} deriving Show
 
 data State = State {
     keySet :: Set.Set Key,
@@ -32,7 +50,8 @@ data State = State {
     mousePrevPos :: (Int,Int),
     cameraMatrix :: Matrix Double,
     soyuzTex :: Tex,
-    soyuzSolid :: SolidData
+    soyuzSolid :: SolidData,
+    soyuzJet :: Jet
 } deriving Show
 
 toGLmat :: (Real e, Num (Matrix e), Linear Matrix e)
@@ -61,13 +80,19 @@ readObj file = do
         faceIx :: [[(Int,Int)]]
         faceIx = map (map (tup2 . map (pred . read) . splitOn "//") . tail)
             $ filter ((== "f") . head) rows
-        faces :: SolidData
+        faces :: [MFace]
         faces = map f faceIx where
             f [x,y,z] = TriF (g x) (g y) (g z)
             f [x,y,z,w] = QuadF (g x) (g y) (g z) (g w)
             g :: (Int,Int) -> (V,V)
             g (i,j) = (verts !! i, norms !! j)
-    return faces
+        
+        bounds = (
+                minimum &&& maximum $ map (\(x,_,_) -> x) verts,
+                minimum &&& maximum $ map (\(_,y,_) -> y) verts,
+                minimum &&& maximum $ map (\(_,_,z) -> z) verts
+            )
+    return $ SolidData { solidFaces = faces, solidBounds = bounds }
 
 readTex :: FilePath -> IO Tex
 readTex file = do
@@ -93,7 +118,7 @@ main = do
     initialWindowSize $= Size 400 300
     initialWindowPosition $= Position 0 0
     createWindow "soyuz-u"
-    --depthMask $= Enabled
+    depthMask $= Enabled
     depthFunc $= Nothing
     
     shadeModel $= Smooth
@@ -108,7 +133,8 @@ main = do
         mousePrevPos = (0,0),
         cameraMatrix = translation $ 3 |> [0,0,-20],
         soyuzTex = tex,
-        soyuzSolid = solid
+        soyuzSolid = solid,
+        soyuzJet = []
     }
     
     actionOnWindowClose $= MainLoopReturns
@@ -231,39 +257,63 @@ display state = do
         
         {-
             $ perl -MList::AllUtils=max,min -nle'
-                BEGIN{ my @x, @y }
+                BEGIN{ my @x, @y, @z }
                 if (m/^v\s/) {
                     my @xyz = m/(-?\d+\.\d+)/g;
                     push @x, $xyz[0];
                     push @y, $xyz[1];
+                    push @z, $xyz[2];
                 }
                 END {
                     print "x: ", min(@x), ", ", max(@x);
                     print "y: ", min(@y), ", ", max(@y);
+                    print "z: ", min(@z), ", ", max(@z);
                 }' soyuz-u.obj
             x: -1.574926, 1.597995
             y: -6.345765, 11.325398
+            z: -1.586375, 1.585789
         -}
+        ((xmin,xmax),(ymin,ymax),(zmin,zmax)) = solidBounds $ soyuzSolid state
+        
         ptM :: VN -> IO ()
         ptM ((vx,vy,vz),(nx,ny,nz)) = do
             color $ Color4 1 1 1 (1 :: GLfloat)
             normal $ Normal3 nx ny nz
             let tx = (vx - xmin) / (xmax - xmin)
                 ty = (vy - ymin) / (ymax - ymin)
-                (xmin,xmax) = (-1.574926, 1.597995)
-                (ymin,ymax) = (-6.345765, 11.325398)
             texCoord $ TexCoord2 tx ty
             vertex $ Vertex3 vx vy vz
      
+    print (xmin,xmax)
+    print (ymin,ymax)
+    print (zmin,zmax)
+    print ()
+    
     withTexture2D (soyuzTex state) $ do
-        renderPrimitive Triangles $ mapM_ triM (soyuzSolid state)
-        renderPrimitive Quads $ mapM_ quadM (soyuzSolid state)
+        renderPrimitive Triangles $ mapM_ triM (solidFaces $ soyuzSolid state)
+        renderPrimitive Quads $ mapM_ quadM (solidFaces $ soyuzSolid state)
+    
+    --renderPrimitive Quads $ do
+    --    (soyuzJet state)
     
     flush
     swapBuffers
     postRedisplay Nothing
     
-    return $ navigate state
+    stepJet $ navigate state
+
+stepJet :: State -> IO State
+stepJet state = do
+    [r,a,o,z] <- mapM randomRIO [(1.0,1.2),(0,2*pi),(0,1),(0,0.5)]
+    let seg = Segment {
+            segmentRadius = r,
+            segmentAngle = a,
+            segmentOffset = o,
+            segmentZ = z
+        }
+    segs <- zipWith (\s dz -> s { segmentZ = (segmentZ s) + dz })
+        (take 49 $ soyuzJet state) . randomRs (0.08,0.12) <$> newStdGen
+    return $ state { soyuzJet = seg : segs }
 
 withTexture2D :: Tex -> IO () -> IO ()
 withTexture2D Tex{ texData = tData, texSize = (w',h') } f = do
