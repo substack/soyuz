@@ -255,24 +255,6 @@ display state = do
         (texW,texH) = (fromIntegral $ fst size, fromIntegral $ snd size)
         size = texSize (soyuzTex state)
         
-        {-
-            $ perl -MList::AllUtils=max,min -nle'
-                BEGIN{ my @x, @y, @z }
-                if (m/^v\s/) {
-                    my @xyz = m/(-?\d+\.\d+)/g;
-                    push @x, $xyz[0];
-                    push @y, $xyz[1];
-                    push @z, $xyz[2];
-                }
-                END {
-                    print "x: ", min(@x), ", ", max(@x);
-                    print "y: ", min(@y), ", ", max(@y);
-                    print "z: ", min(@z), ", ", max(@z);
-                }' soyuz-u.obj
-            x: -1.574926, 1.597995
-            y: -6.345765, 11.325398
-            z: -1.586375, 1.585789
-        -}
         ((xmin,xmax),(ymin,ymax),(zmin,zmax)) = solidBounds $ soyuzSolid state
         
         ptM :: VN -> IO ()
@@ -284,11 +266,6 @@ display state = do
             texCoord $ TexCoord2 tx ty
             vertex $ Vertex3 vx vy vz
      
-    print (xmin,xmax)
-    print (ymin,ymax)
-    print (zmin,zmax)
-    print ()
-    
     withTexture2D (soyuzTex state) $ do
         renderPrimitive Triangles $ mapM_ triM (solidFaces $ soyuzSolid state)
         renderPrimitive Quads $ mapM_ quadM (solidFaces $ soyuzSolid state)
