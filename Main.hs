@@ -8,7 +8,7 @@ import qualified Graphics.GD as GD
 import Numeric.LinearAlgebra.Transform
 import Numeric.LinearAlgebra hiding (scale,reshape)
 
-import Control.Concurrent (newMVar,takeMVar,putMVar)
+import Control.Concurrent (newMVar,takeMVar,putMVar,threadDelay)
 import qualified Data.Set as Set
 
 import Control.Monad (liftM2,forM_,mapM_)
@@ -131,7 +131,7 @@ main = do
         keySet = Set.empty,
         mousePos = (0,0),
         mousePrevPos = (0,0),
-        cameraMatrix = translation $ 3 |> [0,0,-20],
+        cameraMatrix = translation $ 3 |> [0,0,-50],
         soyuzTex = tex,
         soyuzSolid = solid,
         soyuzJet = []
@@ -230,6 +230,8 @@ navigate state = state { cameraMatrix = matF (cameraMatrix state) }
 
 display :: State -> IO State
 display state = do
+    startT <- get elapsedTime
+    
     clearColor $= Color4 0 0 0 1
     clear [ ColorBuffer ]
     
@@ -278,6 +280,8 @@ display state = do
     swapBuffers
     postRedisplay Nothing
     
+    dt <- (subtract startT) <$> get elapsedTime
+    threadDelay $ max 0 (75 - dt)
     stepJet $ navigate state
 
 stepJet :: State -> IO State
@@ -290,15 +294,16 @@ stepJet state = do
             segmentOffset = o,
             segmentZ = z
         }
-        stepZ :: Float -> Jet -> Jet
-        stepZ dz = map (\s -> s { segmentZ = (segmentZ s) + dz' })
-            where dz' = fromRational $ toRational dz
+        
+        stepZ :: GLfloat -> Jet -> Jet
+        stepZ dz = map (\s -> s { segmentZ = (segmentZ s) + dz })
+        
         taper :: Jet -> Jet
         taper = map (\s -> s { segmentRadius = (segmentRadius s) * dr })
-            where dr = 0.96
+            where dr = 0.99
         
         jet' = take 30 $ (seg :) $ taper $ stepZ 1.2 $ soyuzJet state
-    
+        
     return $ state { soyuzJet = jet' }
 
 renderJet :: Jet -> IO ()
