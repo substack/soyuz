@@ -270,7 +270,9 @@ display state = do
         renderPrimitive Triangles $ mapM_ triM (solidFaces $ soyuzSolid state)
         renderPrimitive Quads $ mapM_ quadM (solidFaces $ soyuzSolid state)
     
-    renderJet $ soyuzJet state
+    preservingMatrix $ do
+        GL.translate $ Vector3 0 ymin 0
+        renderJet $ soyuzJet state
     
     flush
     swapBuffers
@@ -290,7 +292,7 @@ stepJet state = do
         }
     segs <- zipWith
         (\s dz -> s { segmentZ = (segmentZ s) + dz })
-        (take 49 $ soyuzJet state)
+        (take 99 $ soyuzJet state)
         . map (fromRational . toRational)
         . randomRs (0.08,0.12 :: Float) <$> newStdGen
     return $ state { soyuzJet = seg : segs }
@@ -302,7 +304,7 @@ renderJet jet = renderPrimitive Quads $ mapM_ f $ zip jet (tail jet) where
         forM_ [pn1,pn2,pn3,pn4] $ \((vx,vy,vz),(nx,ny,nz)) -> do
             color $ Color4 1 1 1 (1 :: GLfloat)
             normal $ Normal3 nx ny nz
-            vertex $ Vertex3 vx vy vz
+            vertex $ Vertex3 vx (-vz) vy
 
 lathe :: Int -> Segment -> Segment -> [MFace]
 lathe n seg1 seg2 =
