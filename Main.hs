@@ -283,24 +283,24 @@ display state = do
 stepJet :: State -> IO State
 stepJet state = do
     [r,a,o,z] <- mapM ((fromRational . toRational <$>) . randomRIO)
-        ([(1.0,1.2),(0,2*pi),(0,1),(0,0.5)] :: [(Float,Float)])
+        ([(1.0,1.2),(0,2*pi),(0,0.2),(0,0.5)] :: [(Float,Float)])
     let seg = Segment {
             segmentRadius = r,
             segmentAngle = a,
             segmentOffset = o,
             segmentZ = z
         }
-    segs <- zipWith
-        (\s dz -> s { segmentZ = (segmentZ s) + dz })
-        (take 99 $ soyuzJet state)
-        . map (fromRational . toRational)
-        . randomRs (0.08,0.12 :: Float) <$> newStdGen
-    return $ state { soyuzJet = seg : segs }
+        stepZ :: Float -> Jet -> Jet
+        stepZ dz = map (\s -> s { segmentZ = (segmentZ s) + dz' }) . take 19
+            where dz' = fromRational $ toRational dz
+    return $ state {
+        soyuzJet = seg : stepZ 1.2 (soyuzJet state)
+    }
 
 renderJet :: Jet -> IO ()
 renderJet jet = renderPrimitive Quads $ mapM_ f $ zip jet (tail jet) where
     f :: (Segment,Segment) -> IO ()
-    f (s1,s2) = forM_ (lathe 24 s1 s2) $ \(QuadF pn1 pn2 pn3 pn4) ->
+    f (s1,s2) = forM_ (lathe 12 s1 s2) $ \(QuadF pn1 pn2 pn3 pn4) ->
         forM_ [pn1,pn2,pn3,pn4] $ \((vx,vy,vz),(nx,ny,nz)) -> do
             color $ Color4 1 1 1 (1 :: GLfloat)
             normal $ Normal3 nx ny nz
@@ -315,16 +315,16 @@ lathe n seg1 seg2 =
     | a <- [ 0, da .. 2 * pi ] ]
     where
         pts a = [
-                (r1 * cos a, r1 * sin a, z1),
-                (r1 * cos (a + da), r1 * sin (a + da), z1),
-                (r2 * cos (a + da), r2 * sin (a + da), z2),
-                (r2 * cos a, r2 * sin a, z2)
+                (ox1 + r1 * cos a, oy1 + r1 * sin a, oz1),
+                (ox1 + r1 * cos (a + da), oy1 + r1 * sin (a + da), oz1),
+                (ox2 + r2 * cos (a + da), oy2 + r2 * sin (a + da), oz2),
+                (ox2 + r2 * cos a, oy2 + r2 * sin a, oz2)
             ] 
-        da = (fromIntegral n) / (2 * pi)
+        (ox1,oy1,oz1) = offset seg1
+        (ox2,oy2,oz2) = offset seg2
+        da = 2 * pi / (fromIntegral n)
         r1 = segmentRadius seg1
         r2 = segmentRadius seg2
-        z1 = segmentZ seg1
-        z2 = segmentZ seg2
  
 surfaceNorm :: [V] -> V
 surfaceNorm vs = (0,1,0) -- fixed normal for now
