@@ -11,7 +11,7 @@ import Numeric.LinearAlgebra hiding (scale,reshape)
 import Control.Concurrent (newMVar,takeMVar,putMVar)
 import qualified Data.Set as Set
 
-import Control.Monad (liftM2,forM_)
+import Control.Monad (liftM2,forM_,mapM_)
 import Control.Applicative ((<$>),(<*>))
 import Control.Arrow ((&&&))
 import Data.List.Split (splitOn)
@@ -38,10 +38,10 @@ data Tex = Tex { texData :: TexData, texSize :: GD.Size }
 
 type Jet = [Segment]
 data Segment = Segment {
-    segmentRadius :: Float,
-    segmentAngle :: Float,
-    segmentOffset :: Float,
-    segmentZ :: Float
+    segmentRadius :: GLfloat,
+    segmentAngle :: GLfloat,
+    segmentOffset :: GLfloat,
+    segmentZ :: GLfloat
 } deriving Show
 
 data State = State {
@@ -270,8 +270,7 @@ display state = do
         renderPrimitive Triangles $ mapM_ triM (solidFaces $ soyuzSolid state)
         renderPrimitive Quads $ mapM_ quadM (solidFaces $ soyuzSolid state)
     
-    --renderPrimitive Quads $ do
-    --    (soyuzJet state)
+    renderJet $ soyuzJet state
     
     flush
     swapBuffers
@@ -281,16 +280,35 @@ display state = do
 
 stepJet :: State -> IO State
 stepJet state = do
-    [r,a,o,z] <- mapM randomRIO [(1.0,1.2),(0,2*pi),(0,1),(0,0.5)]
+    [r,a,o,z] <- mapM ((fromRational . toRational <$>) . randomRIO)
+        ([(1.0,1.2),(0,2*pi),(0,1),(0,0.5)] :: [(Float,Float)])
     let seg = Segment {
             segmentRadius = r,
             segmentAngle = a,
             segmentOffset = o,
             segmentZ = z
         }
-    segs <- zipWith (\s dz -> s { segmentZ = (segmentZ s) + dz })
-        (take 49 $ soyuzJet state) . randomRs (0.08,0.12) <$> newStdGen
+    segs <- zipWith
+        (\s dz -> s { segmentZ = (segmentZ s) + dz })
+        (take 49 $ soyuzJet state)
+        . map (fromRational . toRational)
+        . randomRs (0.08,0.12 :: Float) <$> newStdGen
     return $ state { soyuzJet = seg : segs }
+
+renderJet :: Jet -> IO ()
+renderJet jet = renderPrimitive Quads $ mapM_ f $ zip jet (tail jet) where
+    f :: (Segment,Segment) -> IO ()
+    f (s1,s2) = undefined
+
+lathe :: Int -> Segment -> Segment -> MFace
+lathe seg n = undefined
+ 
+offset :: Segment -> V
+offset seg = (x,y,segmentZ seg) where
+    x = r * cos a
+    y = r * sin a
+    a = segmentAngle seg
+    r = segmentOffset seg
 
 withTexture2D :: Tex -> IO () -> IO ()
 withTexture2D Tex{ texData = tData, texSize = (w',h') } f = do
