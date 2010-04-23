@@ -115,8 +115,6 @@ main = do
     createWindow "soyuz-u"
     depthMask $= Enabled
     depthFunc $= Nothing
-    blend $= Enabled
-    blendFunc $= (SrcAlpha,OneMinusSrcAlpha)
     
     shadeModel $= Smooth
     lighting $= Disabled
@@ -269,10 +267,15 @@ display state = do
     preservingMatrix $ do
         GL.translate $ Vector3 0 (soyuzHeight state) 0
         
+        blend $= Disabled
+        
         withTexture2D (soyuzTex state) $ do
             renderPrimitive Triangles $ mapM_ triM (solidFaces $ soyuzSolid state)
             renderPrimitive Quads $ mapM_ quadM (solidFaces $ soyuzSolid state)
          
+        blend $= Enabled
+        blendFunc $= (OneMinusSrcAlpha,One)
+        
         GL.translate $ Vector3 0 ymin 0
         renderJet $ soyuzJet state
     
@@ -302,7 +305,7 @@ stepJet state = do
         taper = map (\s -> s { segmentRadius = (segmentRadius s) * dr })
             where dr = 0.97
         
-        jet' = take 30 $ (seg :) $ taper $ stepZ 1.2 $ soyuzJet state
+        jet' = take 40 $ (seg :) $ taper $ stepZ 1.2 $ soyuzJet state
         
     return $ state { soyuzJet = jet' }
 
@@ -311,7 +314,7 @@ renderJet jet = renderPrimitive Quads $ mapM_ f $ zip3 [0..] jet (tail jet) wher
     f :: (GLfloat,Segment,Segment) -> IO ()
     f (i,s1,s2) = forM_ (lathe 12 s1 s2) $ \(QuadF pn1 pn2 pn3 pn4) ->
         forM_ [pn1,pn2,pn3,pn4] $ \((vx,vy,vz),(nx,ny,nz)) -> do
-            let alpha = i / 30
+            let alpha = i / 39
             color $ Color4 1 1 1 alpha
             normal $ Normal3 nx ny nz
             vertex $ Vertex3 vx (-vz) vy
