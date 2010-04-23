@@ -51,7 +51,8 @@ data State = State {
     cameraMatrix :: Matrix Double,
     soyuzTex :: Tex,
     soyuzSolid :: SolidData,
-    soyuzJet :: Jet
+    soyuzJet :: Jet,
+    soyuzHeight :: GLfloat
 } deriving Show
 
 toGLmat :: (Real e, Num (Matrix e), Linear Matrix e)
@@ -59,12 +60,6 @@ toGLmat :: (Real e, Num (Matrix e), Linear Matrix e)
 toGLmat = GL.newMatrix RowMajor
     . map (fromRational . toRational)
     . concat . toLists
-
-translateM :: MatrixComponent c => Vector3 c -> IO ()
-translateM = GL.translate
-
-rotateM :: MatrixComponent c => c -> Vector3 c -> IO ()
-rotateM = GL.rotate
 
 readObj :: FilePath -> IO SolidData
 readObj file = do
@@ -134,7 +129,8 @@ main = do
         cameraMatrix = translation $ 3 |> [0,0,-50],
         soyuzTex = tex,
         soyuzSolid = solid,
-        soyuzJet = []
+        soyuzJet = [],
+        soyuzHeight = -50
     }
     
     actionOnWindowClose $= MainLoopReturns
@@ -268,11 +264,13 @@ display state = do
             texCoord $ TexCoord2 tx ty
             vertex $ Vertex3 vx vy vz
      
-    withTexture2D (soyuzTex state) $ do
-        renderPrimitive Triangles $ mapM_ triM (solidFaces $ soyuzSolid state)
-        renderPrimitive Quads $ mapM_ quadM (solidFaces $ soyuzSolid state)
-    
     preservingMatrix $ do
+        GL.translate $ Vector3 0 (soyuzHeight state) 0
+        
+        withTexture2D (soyuzTex state) $ do
+            renderPrimitive Triangles $ mapM_ triM (solidFaces $ soyuzSolid state)
+            renderPrimitive Quads $ mapM_ quadM (solidFaces $ soyuzSolid state)
+         
         GL.translate $ Vector3 0 ymin 0
         renderJet $ soyuzJet state
     
@@ -282,7 +280,7 @@ display state = do
     
     dt <- (subtract startT) <$> get elapsedTime
     threadDelay $ max 0 (75 - dt)
-    stepJet $ navigate state
+    stepJet $ navigate $ state { soyuzHeight = (soyuzHeight state) + 0.5 }
 
 stepJet :: State -> IO State
 stepJet state = do
@@ -300,7 +298,7 @@ stepJet state = do
         
         taper :: Jet -> Jet
         taper = map (\s -> s { segmentRadius = (segmentRadius s) * dr })
-            where dr = 0.99
+            where dr = 0.97
         
         jet' = take 30 $ (seg :) $ taper $ stepZ 1.2 $ soyuzJet state
         
