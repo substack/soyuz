@@ -109,12 +109,14 @@ readTex file = do
 main :: IO ()
 main = do
     (_, argv) <- getArgsAndInitialize
-    initialDisplayMode $= [ DoubleBuffered, RGBMode, WithDepthBuffer ]
+    initialDisplayMode $= [ DoubleBuffered, RGBAMode, WithDepthBuffer ]
     initialWindowSize $= Size 400 300
     initialWindowPosition $= Position 0 0
     createWindow "soyuz-u"
     depthMask $= Enabled
     depthFunc $= Nothing
+    blend $= Enabled
+    blendFunc $= (SrcAlpha,OneMinusSrcAlpha)
     
     shadeModel $= Smooth
     lighting $= Disabled
@@ -305,11 +307,12 @@ stepJet state = do
     return $ state { soyuzJet = jet' }
 
 renderJet :: Jet -> IO ()
-renderJet jet = renderPrimitive Quads $ mapM_ f $ zip jet (tail jet) where
-    f :: (Segment,Segment) -> IO ()
-    f (s1,s2) = forM_ (lathe 12 s1 s2) $ \(QuadF pn1 pn2 pn3 pn4) ->
+renderJet jet = renderPrimitive Quads $ mapM_ f $ zip3 [0..] jet (tail jet) where
+    f :: (GLfloat,Segment,Segment) -> IO ()
+    f (i,s1,s2) = forM_ (lathe 12 s1 s2) $ \(QuadF pn1 pn2 pn3 pn4) ->
         forM_ [pn1,pn2,pn3,pn4] $ \((vx,vy,vz),(nx,ny,nz)) -> do
-            color $ Color4 1 1 1 (1 :: GLfloat)
+            let alpha = i / 30
+            color $ Color4 1 1 1 alpha
             normal $ Normal3 nx ny nz
             vertex $ Vertex3 vx (-vz) vy
 
