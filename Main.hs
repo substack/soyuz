@@ -298,7 +298,11 @@ stepJet state = do
 renderJet :: Jet -> IO ()
 renderJet jet = renderPrimitive Quads $ mapM_ f $ zip jet (tail jet) where
     f :: (Segment,Segment) -> IO ()
-    f (s1,s2) = undefined
+    f (s1,s2) = forM_ (lathe 24 s1 s2) $ \(QuadF pn1 pn2 pn3 pn4) ->
+        forM_ [pn1,pn2,pn3,pn4] $ \((vx,vy,vz),(nx,ny,nz)) -> do
+            color $ Color4 1 1 1 (1 :: GLfloat)
+            normal $ Normal3 nx ny nz
+            vertex $ Vertex3 vx vy vz
 
 lathe :: Int -> Segment -> Segment -> [MFace]
 lathe n seg1 seg2 =
@@ -321,7 +325,7 @@ lathe n seg1 seg2 =
         z2 = segmentZ seg2
  
 surfaceNorm :: [V] -> V
-surfaceNorm vs = undefined
+surfaceNorm vs = (0,1,0) -- fixed normal for now
 
 offset :: Segment -> V
 offset seg = (x,y,segmentZ seg) where
