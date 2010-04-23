@@ -283,7 +283,7 @@ display state = do
 stepJet :: State -> IO State
 stepJet state = do
     [r,a,o,z] <- mapM ((fromRational . toRational <$>) . randomRIO)
-        ([(1.0,1.2),(0,2*pi),(0,0.2),(0,0.5)] :: [(Float,Float)])
+        ([(1.5,1.7),(0,2*pi),(0.0,0.3),(0.1,0.3)] :: [(Float,Float)])
     let seg = Segment {
             segmentRadius = r,
             segmentAngle = a,
@@ -291,11 +291,15 @@ stepJet state = do
             segmentZ = z
         }
         stepZ :: Float -> Jet -> Jet
-        stepZ dz = map (\s -> s { segmentZ = (segmentZ s) + dz' }) . take 19
+        stepZ dz = map (\s -> s { segmentZ = (segmentZ s) + dz' })
             where dz' = fromRational $ toRational dz
-    return $ state {
-        soyuzJet = seg : stepZ 1.2 (soyuzJet state)
-    }
+        taper :: Jet -> Jet
+        taper = map (\s -> s { segmentRadius = (segmentRadius s) * dr })
+            where dr = 0.96
+        
+        jet' = take 30 $ (seg :) $ taper $ stepZ 1.2 $ soyuzJet state
+    
+    return $ state { soyuzJet = jet' }
 
 renderJet :: Jet -> IO ()
 renderJet jet = renderPrimitive Quads $ mapM_ f $ zip jet (tail jet) where
