@@ -300,9 +300,29 @@ renderJet jet = renderPrimitive Quads $ mapM_ f $ zip jet (tail jet) where
     f :: (Segment,Segment) -> IO ()
     f (s1,s2) = undefined
 
-lathe :: Int -> Segment -> Segment -> MFace
-lathe seg n = undefined
+lathe :: Int -> Segment -> Segment -> [MFace]
+lathe n seg1 seg2 =
+    [
+        let [pn1,pn2,pn3,pn4] = map (flip (,) $ norm) $ pts a
+            norm = surfaceNorm (pts a)
+        in QuadF pn1 pn2 pn3 pn4
+    | a <- [ 0, da .. 2 * pi ] ]
+    where
+        pts a = [
+                (r1 * cos a, r1 * sin a, z1),
+                (r1 * cos (a + da), r1 * sin (a + da), z1),
+                (r2 * cos (a + da), r2 * sin (a + da), z2),
+                (r2 * cos a, r2 * sin a, z2)
+            ] 
+        da = (fromIntegral n) / (2 * pi)
+        r1 = segmentRadius seg1
+        r2 = segmentRadius seg2
+        z1 = segmentZ seg1
+        z2 = segmentZ seg2
  
+surfaceNorm :: [V] -> V
+surfaceNorm vs = undefined
+
 offset :: Segment -> V
 offset seg = (x,y,segmentZ seg) where
     x = r * cos a
