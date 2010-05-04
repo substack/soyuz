@@ -13,7 +13,7 @@ import qualified Data.Set as Set
 
 import Control.Monad (liftM2,forM_,mapM_,liftM3)
 import Control.Applicative ((<$>),(<*>))
-import Control.Arrow ((&&&))
+import Control.Arrow ((&&&),first,second)
 import Data.List.Split (splitOn)
 import System.Random (randomRIO,randomRs,newStdGen)
 
@@ -138,7 +138,7 @@ main = do
         soyuzHeight = 0,
         paused = False,
         wireframe = False,
-        groundSmoke = [(1.0,0.5),(10.0,3.0)]
+        groundSmoke = []
     }
     
     actionOnWindowClose $= MainLoopReturns
@@ -291,8 +291,11 @@ display state = do
         
         ($ soyuzJet state)
             $ if wireframe state then renderWireJet else renderSolidJet
-    
-    renderSmoke (groundSmoke state)
+        
+        GL.translate $ Vector3 0 (- soyuzHeight state) 0
+        
+        ($ groundSmoke state)
+            $ if wireframe state then renderWireSmoke else renderSolidSmoke
     
     flush
     swapBuffers
@@ -301,12 +304,18 @@ display state = do
     dt <- (subtract startT) <$> get elapsedTime
     threadDelay $ max 0 (75 - dt)
     
-    (navigate <$>)
-        . (if paused state then return else fmap stepHeight . stepJet)
-        $ state
+    (navigate <$>) $ if paused state
+        then return state
+        else stepHeight <$> (stepSmoke =<< stepJet state)
 
 stepHeight :: State -> State
 stepHeight state = state { soyuzHeight = (soyuzHeight state) + 0.5 }
+
+stepSmoke :: State -> IO State
+stepSmoke state = do
+    let smokes = smoke : [ (r+0.1,z-0.1) | (r,z) <- groundSmoke state ]
+        smoke = (0.1,0)
+    return $ state { groundSmoke = take 50 smokes }
 
 stepJet :: State -> IO State
 stepJet state = do
@@ -341,13 +350,15 @@ renderJet mode jet = renderPrimitive mode
                 color $ Color4 1 1 1 alpha
                 normal $ Normal3 nx ny nz
                 vertex $ Vertex3 vx (-vz) vy
-
 renderSolidJet = renderJet Quads
 renderWireJet = renderJet Lines
 
-renderSmoke :: GroundSmoke -> IO ()
-renderSmoke smoke = renderPrimitive Quads $ do
-    let coords = liftM2 (,) [ 0, 0.1 .. 2 * pi ] smoke
+renderSmoke :: PrimitiveMode -> GroundSmoke -> IO ()
+renderSmoke mode smoke = renderPrimitive mode $ do
+    let coords = liftM2 (,) [ 0, 0.1 .. 2 * pi ] (smoke ++ [sEnd])
+        sEnd = first (+ 3) $ second (const 0) $ case smoke of
+            [] -> (0,0)
+            _ -> last smoke
     forM_ (zip coords $ tail coords) $ \((t,(r,z)),(_,(r',z'))) -> do
         let
             t' = t + 0.1
@@ -360,6 +371,8 @@ renderSmoke smoke = renderPrimitive Quads $ do
         vertex $ Vertex3 x1 (-z') y1
         vertex $ Vertex3 x2 (-z') y2
         vertex $ Vertex3 x3 (-z) y3
+renderSolidSmoke = renderSmoke Quads
+renderWireSmoke = renderSmoke Lines
 
 lathe :: Int -> Segment -> Segment -> [MFace]
 lathe n seg1 seg2 =
