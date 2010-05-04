@@ -184,7 +184,8 @@ main = do
     mainLoop
 
 onKeyUp :: State -> Key -> IO State
-onKeyUp state (Char ' ') = return $ state { soyuzJet = [], soyuzHeight = 0 }
+onKeyUp state (Char ' ') = return
+    $ state { soyuzJet = [], soyuzHeight = 0, groundSmoke = [] }
 onKeyUp state (Char 'p') = return $ state { paused = not (paused state) }
 onKeyUp state (Char 'o') = return $ state { wireframe = not (wireframe state) }
 onKeyUp state key = return state
@@ -315,7 +316,7 @@ stepSmoke :: State -> IO State
 stepSmoke state = do
     let smokes = smoke : [ (r+0.4,z-0.1) | (r,z) <- groundSmoke state ]
         smoke = (0.1,0)
-    return $ state { groundSmoke = take 30 smokes }
+    return $ state { groundSmoke = take 60 smokes }
 
 stepJet :: State -> IO State
 stepJet state = do
@@ -355,18 +356,19 @@ renderWireJet = renderJet Lines
 
 renderSmoke :: PrimitiveMode -> GroundSmoke -> IO ()
 renderSmoke mode smoke = renderPrimitive mode $ do
-    let coords = liftM2 (,) [ 0, 0.2 .. 2 * pi ] (smoke ++ [sEnd])
+    let dt = 2 * pi / 18
+        coords = liftM2 (,) [ 0, dt .. 2 * pi - dt ] (smoke ++ [sEnd])
         sEnd = first (+ 3) $ second (const 0) $ case smoke of
             [] -> (0,0)
             _ -> last smoke
-    forM_ (zip coords $ tail coords) $ \((t,(r,z)),(_,(r',z'))) -> do
+    forM_ (zip (last coords : coords) coords) $ \((t,(r,z)),(_,(r',z'))) -> do
         let
-            t' = t + 0.2
+            t' = t + dt
             (x0,y0) = (r * cos t, r * sin t)
             (x1,y1) = (r' * cos t, r' * sin t)
             (x2,y2) = (r' * cos t', r' * sin t')
             (x3,y3) = (r * cos t', r * sin t')
-        color $ Color4 1 1 1 (0.5 :: GLfloat)
+        color $ Color4 1 1 1 (max (r / 15) 0.5)
         vertex $ Vertex3 x0 (-z) y0
         vertex $ Vertex3 x1 (-z') y1
         vertex $ Vertex3 x2 (-z') y2
