@@ -50,6 +50,7 @@ data State = State {
     mousePrevPos :: (Int,Int),
     cameraMatrix :: Matrix Double,
     paused :: Bool,
+    wireframe :: Bool,
     soyuzTex :: Tex,
     soyuzSolid :: SolidData,
     soyuzJet :: Jet,
@@ -132,7 +133,8 @@ main = do
         soyuzSolid = solid,
         soyuzJet = [],
         soyuzHeight = 0,
-        paused = False
+        paused = False,
+        wireframe = False
     }
     
     actionOnWindowClose $= MainLoopReturns
@@ -180,6 +182,7 @@ main = do
 onKeyUp :: State -> Key -> IO State
 onKeyUp state (Char ' ') = return $ state { soyuzJet = [], soyuzHeight = 0 }
 onKeyUp state (Char 'p') = return $ state { paused = not (paused state) }
+onKeyUp state (Char 'o') = return $ state { wireframe = not (wireframe state) }
 onKeyUp state key = return state
 
 onKeyDown :: State -> Key -> IO State
@@ -272,14 +275,18 @@ display state = do
         blend $= Disabled
         
         withTexture2D (soyuzTex state) $ do
-            renderPrimitive Triangles $ mapM_ triM (solidFaces $ soyuzSolid state)
-            renderPrimitive Quads $ mapM_ quadM (solidFaces $ soyuzSolid state)
+            renderPrimitive Triangles
+                $ mapM_ triM (solidFaces $ soyuzSolid state)
+            renderPrimitive Quads
+                $ mapM_ quadM (solidFaces $ soyuzSolid state)
          
         blend $= Enabled
         blendFunc $= (OneMinusSrcAlpha,One)
         
         GL.translate $ Vector3 0 ymin 0
-        renderJet $ soyuzJet state
+        
+        ($ soyuzJet state)
+            $ if wireframe state then renderWireJet else renderSolidJet
     
     flush
     swapBuffers
@@ -317,15 +324,20 @@ stepJet state = do
         
     return $ state { soyuzJet = jet' }
 
-renderJet :: Jet -> IO ()
-renderJet jet = renderPrimitive Quads $ mapM_ f $ zip3 [0..] jet (tail jet) where
-    f :: (GLfloat,Segment,Segment) -> IO ()
-    f (i,s1,s2) = forM_ (lathe 12 s1 s2) $ \(QuadF pn1 pn2 pn3 pn4) ->
-        forM_ [pn1,pn2,pn3,pn4] $ \((vx,vy,vz),(nx,ny,nz)) -> do
-            let alpha = i / 39
-            color $ Color4 1 1 1 alpha
-            normal $ Normal3 nx ny nz
-            vertex $ Vertex3 vx (-vz) vy
+renderJet :: PrimitiveMode -> Jet -> IO ()
+renderJet mode jet = renderPrimitive mode
+    $ mapM_ f $ zip3 [0..] jet (tail jet)
+    where
+        f :: (GLfloat,Segment,Segment) -> IO ()
+        f (i,s1,s2) = forM_ (lathe 12 s1 s2) $ \(QuadF pn1 pn2 pn3 pn4) ->
+            forM_ [pn1,pn2,pn3,pn4] $ \((vx,vy,vz),(nx,ny,nz)) -> do
+                let alpha = i / 39
+                color $ Color4 1 1 1 alpha
+                normal $ Normal3 nx ny nz
+                vertex $ Vertex3 vx (-vz) vy
+
+renderSolidJet = renderJet Quads
+renderWireJet = renderJet Lines
 
 lathe :: Int -> Segment -> Segment -> [MFace]
 lathe n seg1 seg2 =
