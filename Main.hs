@@ -49,6 +49,7 @@ data State = State {
     mousePos :: (Int,Int),
     mousePrevPos :: (Int,Int),
     cameraMatrix :: Matrix Double,
+    paused :: Bool,
     soyuzTex :: Tex,
     soyuzSolid :: SolidData,
     soyuzJet :: Jet,
@@ -126,11 +127,12 @@ main = do
         keySet = Set.empty,
         mousePos = (0,0),
         mousePrevPos = (0,0),
-        cameraMatrix = translation $ 3 |> [0,0,-50],
+        cameraMatrix = translation $ 3 |> [0,0,-30],
         soyuzTex = tex,
         soyuzSolid = solid,
         soyuzJet = [],
-        soyuzHeight = -50
+        soyuzHeight = 0,
+        paused = False
     }
     
     actionOnWindowClose $= MainLoopReturns
@@ -176,8 +178,8 @@ main = do
     mainLoop
 
 onKeyUp :: State -> Key -> IO State
--- print the state
-onKeyUp state (Char ' ') = print state >> return state
+onKeyUp state (Char ' ') = return $ state { soyuzJet = [], soyuzHeight = 0 }
+onKeyUp state (Char 'p') = return $ state { paused = not (paused state) }
 onKeyUp state key = return state
 
 onKeyDown :: State -> Key -> IO State
@@ -285,7 +287,13 @@ display state = do
     
     dt <- (subtract startT) <$> get elapsedTime
     threadDelay $ max 0 (75 - dt)
-    stepJet $ navigate $ state { soyuzHeight = (soyuzHeight state) + 0.5 }
+    
+    (navigate <$>)
+        . (if paused state then return else fmap stepHeight . stepJet)
+        $ state
+
+stepHeight :: State -> State
+stepHeight state = state { soyuzHeight = (soyuzHeight state) + 0.5 }
 
 stepJet :: State -> IO State
 stepJet state = do
