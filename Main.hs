@@ -11,7 +11,7 @@ import Numeric.LinearAlgebra hiding (scale,reshape)
 import Control.Concurrent (newMVar,takeMVar,putMVar,threadDelay)
 import qualified Data.Set as Set
 
-import Control.Monad (liftM2,forM_,mapM_)
+import Control.Monad (liftM2,forM_,mapM_,liftM3)
 import Control.Applicative ((<$>),(<*>))
 import Control.Arrow ((&&&))
 import Data.List.Split (splitOn)
@@ -44,6 +44,8 @@ data Segment = Segment {
     segmentZ :: GLfloat
 } deriving Show
 
+type GroundSmoke = [(GLfloat,GLfloat)]
+
 data State = State {
     keySet :: Set.Set Key,
     mousePos :: (Int,Int),
@@ -54,7 +56,8 @@ data State = State {
     soyuzTex :: Tex,
     soyuzSolid :: SolidData,
     soyuzJet :: Jet,
-    soyuzHeight :: GLfloat
+    soyuzHeight :: GLfloat,
+    groundSmoke :: GroundSmoke
 } deriving Show
 
 toGLmat :: (Real e, Num (Matrix e), Linear Matrix e)
@@ -134,7 +137,8 @@ main = do
         soyuzJet = [],
         soyuzHeight = 0,
         paused = False,
-        wireframe = False
+        wireframe = False,
+        groundSmoke = [(1.0,0.5),(10.0,3.0)]
     }
     
     actionOnWindowClose $= MainLoopReturns
@@ -288,6 +292,8 @@ display state = do
         ($ soyuzJet state)
             $ if wireframe state then renderWireJet else renderSolidJet
     
+    renderSmoke (groundSmoke state)
+    
     flush
     swapBuffers
     postRedisplay Nothing
@@ -338,6 +344,22 @@ renderJet mode jet = renderPrimitive mode
 
 renderSolidJet = renderJet Quads
 renderWireJet = renderJet Lines
+
+renderSmoke :: GroundSmoke -> IO ()
+renderSmoke smoke = renderPrimitive Quads $ do
+    let coords = liftM2 (,) [ 0, 0.1 .. 2 * pi ] smoke
+    forM_ (zip coords $ tail coords) $ \((t,(r,z)),(_,(r',z'))) -> do
+        let
+            t' = t + 0.1
+            (x0,y0) = (r * cos t, r * sin t)
+            (x1,y1) = (r' * cos t, r' * sin t)
+            (x2,y2) = (r' * cos t', r' * sin t')
+            (x3,y3) = (r * cos t', r * sin t')
+        color $ Color4 1 1 1 (0.5 :: GLfloat)
+        vertex $ Vertex3 x0 (-z) y0
+        vertex $ Vertex3 x1 (-z') y1
+        vertex $ Vertex3 x2 (-z') y2
+        vertex $ Vertex3 x3 (-z) y3
 
 lathe :: Int -> Segment -> Segment -> [MFace]
 lathe n seg1 seg2 =
