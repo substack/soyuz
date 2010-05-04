@@ -313,9 +313,9 @@ stepHeight state = state { soyuzHeight = (soyuzHeight state) + 0.5 }
 
 stepSmoke :: State -> IO State
 stepSmoke state = do
-    let smokes = smoke : [ (r+0.1,z-0.1) | (r,z) <- groundSmoke state ]
+    let smokes = smoke : [ (r+0.4,z-0.1) | (r,z) <- groundSmoke state ]
         smoke = (0.1,0)
-    return $ state { groundSmoke = take 50 smokes }
+    return $ state { groundSmoke = take 30 smokes }
 
 stepJet :: State -> IO State
 stepJet state = do
@@ -355,13 +355,13 @@ renderWireJet = renderJet Lines
 
 renderSmoke :: PrimitiveMode -> GroundSmoke -> IO ()
 renderSmoke mode smoke = renderPrimitive mode $ do
-    let coords = liftM2 (,) [ 0, 0.1 .. 2 * pi ] (smoke ++ [sEnd])
+    let coords = liftM2 (,) [ 0, 0.2 .. 2 * pi ] (smoke ++ [sEnd])
         sEnd = first (+ 3) $ second (const 0) $ case smoke of
             [] -> (0,0)
             _ -> last smoke
     forM_ (zip coords $ tail coords) $ \((t,(r,z)),(_,(r',z'))) -> do
         let
-            t' = t + 0.1
+            t' = t + 0.2
             (x0,y0) = (r * cos t, r * sin t)
             (x1,y1) = (r' * cos t, r' * sin t)
             (x2,y2) = (r' * cos t', r' * sin t')
