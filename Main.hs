@@ -289,9 +289,10 @@ renderRocket state = do
         renderTerrain
         
         blend $= Enabled
+        blendFunc $= (SrcAlpha,OneMinusSrcAlpha)
+        
         ($ groundSmoke state)
             $ if wireframe state then renderWireSmoke else renderSolidSmoke
-        blend $= Disabled
         
         GL.translate $ Vector3 0 (-ymin + soyuzHeight state) 0
          
@@ -301,12 +302,9 @@ renderRocket state = do
             renderPrimitive Quads
                 $ mapM_ quadM (solidFaces $ soyuzSolid state)
         
-        blend $= Enabled
-        
         GL.translate $ Vector3 0 ymin 0
         ($ soyuzJet state)
             $ if wireframe state then renderWireJet else renderSolidJet
-        blend $= Disabled
 
 renderTerrain :: IO ()
 renderTerrain = renderPrimitive Triangles $ do
@@ -363,7 +361,7 @@ renderJet mode jet = renderPrimitive mode
         f :: (GLfloat,Segment,Segment) -> IO ()
         f (i,s1,s2) = forM_ (lathe 12 s1 s2) $ \(QuadF pn1 pn2 pn3 pn4) ->
             forM_ [pn1,pn2,pn3,pn4] $ \((vx,vy,vz),(nx,ny,nz)) -> do
-                let alpha = i / 39
+                let alpha = 1 - i / 39
                 color $ Color4 1 1 1 alpha
                 normal $ Normal3 nx ny nz
                 vertex $ Vertex3 vx (-vz) vy
@@ -384,7 +382,7 @@ renderSmoke mode smoke = renderPrimitive mode $ do
             (x1,y1) = (r' * cos t, r' * sin t)
             (x2,y2) = (r' * cos t', r' * sin t')
             (x3,y3) = (r * cos t', r * sin t')
-        color $ Color4 1 1 1 (max (r / 15) 0.5)
+        color $ Color4 1 1 1 (1 - r / 15)
         vertex $ Vertex3 x0 (-z) y0
         vertex $ Vertex3 x1 (-z') y1
         vertex $ Vertex3 x2 (-z') y2
