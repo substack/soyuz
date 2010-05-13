@@ -293,7 +293,7 @@ renderRocket state = do
             $ if wireframe state then renderWireSmoke else renderSolidSmoke
         blend $= Disabled
         
-        GL.translate $ Vector3 0 (soyuzHeight state) 0
+        GL.translate $ Vector3 0 (-ymin + soyuzHeight state) 0
          
         withTexture2D (soyuzTex state) $ do
             renderPrimitive Triangles
