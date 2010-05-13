@@ -131,7 +131,8 @@ main = do
         keySet = Set.empty,
         mousePos = (0,0),
         mousePrevPos = (0,0),
-        cameraMatrix = translation $ 3 |> [0,0,-30],
+        cameraMatrix = translate (3 |> [0,-40,-20])
+            $ rotation (AxisX (pi / 4)),
         soyuzTex = tex,
         soyuzSolid = solid,
         soyuzJet = [],
@@ -246,57 +247,7 @@ display state = do
     
     multMatrix =<< (toGLmat $ cameraMatrix state)
     
-    let triM, quadM :: MFace -> IO ()
-        triM (TriF a b c) = mapM_ ptM [a,b,c]
-        triM _ = return ()
-        
-        quadM (QuadF a b c d) = mapM_ ptM [a,b,c,d]
-        quadM _ = return ()
-        
-        coords = [
-                TexCoord3 0 0 0,
-                TexCoord3 0 1 0,
-                TexCoord3 1 1 1,
-                TexCoord3 1 0 1
-            ] :: [TexCoord3 GLfloat]
-        
-        (texW,texH) = (fromIntegral $ fst size, fromIntegral $ snd size)
-        size = texSize (soyuzTex state)
-        
-        ((xmin,xmax),(ymin,ymax),(zmin,zmax)) = solidBounds $ soyuzSolid state
-        
-        ptM :: VN -> IO ()
-        ptM ((vx,vy,vz),(nx,ny,nz)) = do
-            color $ Color4 1 1 1 (1 :: GLfloat)
-            normal $ Normal3 nx ny nz
-            let tx = (vx - xmin) / (xmax - xmin)
-                ty = (vy - ymin) / (ymax - ymin)
-            texCoord $ TexCoord2 tx ty
-            vertex $ Vertex3 vx vy vz
-     
-    preservingMatrix $ do
-        GL.translate $ Vector3 0 (soyuzHeight state) 0
-        
-        blend $= Disabled
-        
-        withTexture2D (soyuzTex state) $ do
-            renderPrimitive Triangles
-                $ mapM_ triM (solidFaces $ soyuzSolid state)
-            renderPrimitive Quads
-                $ mapM_ quadM (solidFaces $ soyuzSolid state)
-         
-        blend $= Enabled
-        blendFunc $= (OneMinusSrcAlpha,One)
-        
-        GL.translate $ Vector3 0 ymin 0
-        
-        ($ soyuzJet state)
-            $ if wireframe state then renderWireJet else renderSolidJet
-        
-        GL.translate $ Vector3 0 (- soyuzHeight state) 0
-        
-        ($ groundSmoke state)
-            $ if wireframe state then renderWireSmoke else renderSolidSmoke
+    renderRocket state
     
     flush
     swapBuffers
@@ -308,6 +259,68 @@ display state = do
     (navigate <$>) $ if paused state
         then return state
         else stepHeight <$> (stepSmoke =<< stepJet state)
+
+renderRocket :: State -> IO ()
+renderRocket state = do
+    let
+        size = texSize (soyuzTex state)
+        (texW,texH) = (fromIntegral $ fst size, fromIntegral $ snd size)
+        ((xmin,xmax),(ymin,ymax),(zmin,zmax)) = solidBounds $ soyuzSolid state
+        
+        triM, quadM :: MFace -> IO ()
+        triM (TriF a b c) = mapM_ ptM [a,b,c]
+        triM _ = return ()
+
+        quadM (QuadF a b c d) = mapM_ ptM [a,b,c,d]
+        quadM _ = return ()
+
+        ptM :: VN -> IO ()
+        ptM ((vx,vy,vz),(nx,ny,nz)) = do
+            color $ Color4 1 1 1 (1 :: GLfloat)
+            normal $ Normal3 nx ny nz
+            let tx = (vx - xmin) / (xmax - xmin)
+                ty = (vy - ymin) / (ymax - ymin)
+            texCoord $ TexCoord2 tx ty
+            vertex $ Vertex3 vx vy vz
+     
+    blend $= Disabled
+    preservingMatrix $ do
+        renderTerrain
+        
+        blend $= Enabled
+        ($ groundSmoke state)
+            $ if wireframe state then renderWireSmoke else renderSolidSmoke
+        blend $= Disabled
+        
+        GL.translate $ Vector3 0 (soyuzHeight state) 0
+         
+        withTexture2D (soyuzTex state) $ do
+            renderPrimitive Triangles
+                $ mapM_ triM (solidFaces $ soyuzSolid state)
+            renderPrimitive Quads
+                $ mapM_ quadM (solidFaces $ soyuzSolid state)
+        
+        blend $= Enabled
+        ($ soyuzJet state)
+            $ if wireframe state then renderWireJet else renderSolidJet
+        blend $= Disabled
+
+renderTerrain :: IO ()
+renderTerrain = renderPrimitive Triangles $ do
+    let dt = 2 * pi / 24
+    forM_ [ 0, dt .. 2 * pi ] $ \theta -> do
+        color $ (Color4 1 0 0 1 :: Color4 GLfloat)
+        normal (Normal3 0 0 1 :: Normal3 GLfloat)
+        let theta' = theta + dt
+            r = 100
+            x0 = r * cos theta
+            x1 = r * cos theta'
+            y = 0
+            z0 = r * sin theta
+            z1 = r * sin theta'
+        vertex (Vertex3 x0 y z0 :: Vertex3 GLfloat)
+        vertex (Vertex3 x1 y z1 :: Vertex3 GLfloat)
+        vertex (Vertex3 0 y 0 :: Vertex3 GLfloat)
 
 stepHeight :: State -> State
 stepHeight state = state { soyuzHeight = (soyuzHeight state) + 0.5 }
