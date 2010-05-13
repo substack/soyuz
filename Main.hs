@@ -281,7 +281,9 @@ renderRocket state = do
             normal $ Normal3 nx ny nz
             let tx = (vx - xmin) / (xmax - xmin)
                 ty = (vy - ymin) / (ymax - ymin)
-            texCoord $ TexCoord2 tx ty
+                tz = (vz - zmin) / (zmax - zmin)
+                xz = (pi + atan2 tx ty) / (2 * pi)
+            texCoord $ TexCoord2 xz ty
             vertex $ Vertex3 vx vy vz
      
     blend $= Disabled
