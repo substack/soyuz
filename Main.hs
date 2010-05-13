@@ -53,6 +53,7 @@ data State = State {
     mousePrevPos :: (Int,Int),
     cameraMatrix :: Matrix Double,
     paused :: Bool,
+    following :: Bool,
     wireframe :: Bool,
     soyuzTex :: Tex,
     soyuzSolid :: SolidData,
@@ -127,6 +128,8 @@ main = do
     
     depthMask $= Enabled
     depthFunc $= Just Less
+    blend $= Enabled
+    blendFunc $= (SrcAlpha,OneMinusSrcAlpha)
     
     shadeModel $= Smooth
     lighting $= Disabled
@@ -149,6 +152,7 @@ main = do
         soyuzJet = [],
         soyuzHeight = 0,
         paused = False,
+        following = False,
         wireframe = False,
         groundSmoke = []
     }
@@ -199,6 +203,7 @@ onKeyUp :: State -> Key -> IO State
 onKeyUp state (Char ' ') = return
     $ state { soyuzJet = [], soyuzHeight = 0, groundSmoke = [] }
 onKeyUp state (Char 'p') = return $ state { paused = not (paused state) }
+onKeyUp state (Char 'f') = return $ state { following = not (following state) }
 onKeyUp state (Char 'o') = return $ state { wireframe = not (wireframe state) }
 onKeyUp state key = return state
 
@@ -276,9 +281,10 @@ display state = do
     dt <- (subtract startT) <$> get elapsedTime
     threadDelay $ max 0 (75 - dt)
     
-    (navigate <$>) $ if paused state
-        then return state
-        else stepHeight <$> (stepSmoke =<< stepJet state)
+    (navigate <$>)
+        $ if paused state
+            then return state
+            else stepHeight <$> (stepSmoke =<< stepJet state)
 
 renderRocket :: State -> IO ()
 renderRocket state = do
@@ -303,18 +309,16 @@ renderRocket state = do
             texCoord $ TexCoord2 xz ty
             vertex $ Vertex3 vx vy vz
      
-    blend $= Disabled
     preservingMatrix $ do
+        -- first render the stuff on the ground
         renderTerrain state
-        
-        blend $= Enabled
-        blendFunc $= (SrcAlpha,OneMinusSrcAlpha)
         
         ($ state)
             $ if wireframe state
                 then renderWireSmoke
                 else renderSolidSmoke
         
+        -- then render the stuff in the sky
         GL.translate $ Vector3 0 (-ymin + soyuzHeight state) 0
          
         withTexture2D (soyuzTex state) $ do
@@ -361,7 +365,11 @@ renderTerrain state = renderPrimitive Triangles $ do
         vertex (Vertex3 0 y 0 :: Vertex3 GLfloat)
 
 stepHeight :: State -> State
-stepHeight state = state { soyuzHeight = (soyuzHeight state) + 0.5 }
+stepHeight state = if following state then state'' else state'
+    where
+        state' = state { soyuzHeight = (soyuzHeight state) + 0.5 }
+        state'' = state' { cameraMatrix = tr (cameraMatrix state) }
+        tr = translate (3 |> [0,-0.5,0])
 
 stepSmoke :: State -> IO State
 stepSmoke state = do
