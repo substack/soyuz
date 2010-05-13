@@ -413,7 +413,21 @@ renderJet mode jet = renderPrimitive mode
                 color $ Color4 1 1 1 alpha
                 normal $ Normal3 nx ny nz
                 vertex $ Vertex3 vx (-vz) vy
-renderSolidJet = renderJet Quads
+renderSolidJet jet = do
+    -- render some triangles on the bottom of the thrusters
+    renderPrimitive Triangles $ do
+        let dt = 2 * pi / 8
+        forM_ [ 0, dt .. 2 * pi ] $ \theta -> do
+            color (Color4 1 1 1 1 :: Color4 GLfloat)
+            let theta' = theta + dt
+                (x,z) = (r * cos theta, r * sin theta)
+                (x',z') = (r * cos theta', r * sin theta')
+                r = 1.5
+                y = -0.1
+            vertex (Vertex3 x y z :: Vertex3 GLfloat)
+            vertex (Vertex3 x' y z' :: Vertex3 GLfloat)
+            vertex (Vertex3 0 y 0 :: Vertex3 GLfloat)
+    renderJet Quads jet
 renderWireJet = renderJet Lines
 
 renderSmoke :: PrimitiveMode -> State -> IO ()
@@ -426,6 +440,7 @@ renderSmoke mode state = renderPrimitive mode $ do
             [] -> (0,0)
             _ -> last smoke
         h = soyuzHeight state
+    -- connect each radial fan to its neighbor
     forM_ (zip (last coords : coords) coords) $ \((t,(r,z)),(_,(r',z'))) -> do
         let
             t' = t + dt
