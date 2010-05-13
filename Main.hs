@@ -11,7 +11,7 @@ import Numeric.LinearAlgebra hiding (scale,reshape)
 import Control.Concurrent (newMVar,takeMVar,putMVar,threadDelay)
 import qualified Data.Set as Set
 
-import Control.Monad (liftM2,forM_,mapM_,liftM3)
+import Control.Monad (liftM2,forM_,mapM_,replicateM)
 import Control.Applicative ((<$>),(<*>))
 import Control.Arrow ((&&&),first,second)
 import Data.List.Split (splitOn)
@@ -301,8 +301,10 @@ renderRocket state = do
         blend $= Enabled
         blendFunc $= (SrcAlpha,OneMinusSrcAlpha)
         
-        ($ groundSmoke state)
-            $ if wireframe state then renderWireSmoke else renderSolidSmoke
+        ($ state)
+            $ if wireframe state
+                then renderWireSmoke
+                else renderSolidSmoke
         
         GL.translate $ Vector3 0 (-ymin + soyuzHeight state) 0
          
@@ -313,8 +315,11 @@ renderRocket state = do
                 $ mapM_ quadM (solidFaces $ soyuzSolid state)
         
         GL.translate $ Vector3 0 ymin 0
+        
         ($ soyuzJet state)
-            $ if wireframe state then renderWireJet else renderSolidJet
+            $ if wireframe state
+                then renderWireJet
+                else renderSolidJet
 
 -- render the terrain as a series of wedges with an image on top
 renderTerrain :: State -> IO ()
@@ -351,9 +356,20 @@ stepHeight state = state { soyuzHeight = (soyuzHeight state) + 0.5 }
 
 stepSmoke :: State -> IO State
 stepSmoke state = do
-    let smokes = smoke : [ (r+0.4,z-0.1) | (r,z) <- groundSmoke state ]
-        smoke = (0.1,0)
-    return $ state { groundSmoke = take 60 smokes }
+    [gIs,gDzs,gRs] <- replicateM 3 newStdGen
+    let
+        [ir,iz] = take 2 $ map ftr (randomRs (0,1) gIs :: [Float])
+        dzs = map ftr (randomRs (0,0.1) gDzs :: [Float])
+        rs = map ftr (randomRs (1.5,2.4) gRs :: [Float])
+        
+        ftr = fromRational . toRational
+        
+        smokes = (0.1 * ir, -0.5 * iz) : zipWith f (groundSmoke state) dzs
+        f (r,z) dz = (r + 0.4, min (-0.5) (z - dz))
+        
+        h = soyuzHeight state
+        takeN = floor $ 100 - h
+    return $ state { groundSmoke = take takeN smokes }
 
 stepJet :: State -> IO State
 stepJet state = do
@@ -384,20 +400,23 @@ renderJet mode jet = renderPrimitive mode
         f :: (GLfloat,Segment,Segment) -> IO ()
         f (i,s1,s2) = forM_ (lathe 12 s1 s2) $ \(QuadF pn1 pn2 pn3 pn4) ->
             forM_ [pn1,pn2,pn3,pn4] $ \((vx,vy,vz),(nx,ny,nz)) -> do
-                let alpha = 1 - i / 39
+                let alpha = 1 - i / 20
                 color $ Color4 1 1 1 alpha
                 normal $ Normal3 nx ny nz
                 vertex $ Vertex3 vx (-vz) vy
 renderSolidJet = renderJet Quads
 renderWireJet = renderJet Lines
 
-renderSmoke :: PrimitiveMode -> GroundSmoke -> IO ()
-renderSmoke mode smoke = renderPrimitive mode $ do
-    let dt = 2 * pi / 18
+renderSmoke :: PrimitiveMode -> State -> IO ()
+renderSmoke mode state = renderPrimitive mode $ do
+    let
+        smoke = groundSmoke state
+        dt = 2 * pi / 18
         coords = liftM2 (,) [ 0, dt .. 2 * pi - dt ] (smoke ++ [sEnd])
         sEnd = first (+ 3) $ second (const 0) $ case smoke of
             [] -> (0,0)
             _ -> last smoke
+        h = soyuzHeight state
     forM_ (zip (last coords : coords) coords) $ \((t,(r,z)),(_,(r',z'))) -> do
         let
             t' = t + dt
@@ -405,7 +424,9 @@ renderSmoke mode smoke = renderPrimitive mode $ do
             (x1,y1) = (r' * cos t, r' * sin t)
             (x2,y2) = (r' * cos t', r' * sin t')
             (x3,y3) = (r * cos t', r * sin t')
-        color $ Color4 1 1 1 (1 - r / 15)
+            alpha = (1 - r / 40) - (sqrt $ h / 60)
+        
+        color $ Color4 1 1 1 alpha
         vertex $ Vertex3 x0 (-z) y0
         vertex $ Vertex3 x1 (-z') y1
         vertex $ Vertex3 x2 (-z') y2
