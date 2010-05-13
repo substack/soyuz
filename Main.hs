@@ -118,8 +118,9 @@ main = do
     initialWindowSize $= Size 400 300
     initialWindowPosition $= Position 0 0
     createWindow "soyuz-u"
+    
     depthMask $= Enabled
-    depthFunc $= Nothing
+    depthFunc $= Just Less
     
     shadeModel $= Smooth
     lighting $= Disabled
@@ -180,7 +181,7 @@ main = do
         loadIdentity
         let as = fromIntegral w / fromIntegral h
             sa = recip as
-        perspective 60 as 10000 0
+        perspective 60 as 0.1 100000
     
     mainLoop
 
@@ -240,7 +241,7 @@ display state = do
     startT <- get elapsedTime
     
     clearColor $= Color4 0 0 0 1
-    clear [ ColorBuffer ]
+    clear [ ColorBuffer, DepthBuffer ]
     
     matrixMode $= Modelview 0
     loadIdentity
@@ -301,6 +302,8 @@ renderRocket state = do
                 $ mapM_ quadM (solidFaces $ soyuzSolid state)
         
         blend $= Enabled
+        
+        GL.translate $ Vector3 0 ymin 0
         ($ soyuzJet state)
             $ if wireframe state then renderWireJet else renderSolidJet
         blend $= Disabled
