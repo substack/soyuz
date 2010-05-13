@@ -11,7 +11,7 @@ import Numeric.LinearAlgebra hiding (scale,reshape)
 import Control.Concurrent (newMVar,takeMVar,putMVar,threadDelay)
 import qualified Data.Set as Set
 
-import Control.Monad (liftM2,forM_,mapM_,replicateM)
+import Control.Monad (liftM2,forM_,mapM_)
 import Control.Applicative ((<$>),(<*>))
 import Control.Arrow ((&&&),first,second)
 import Data.List.Split (splitOn)
@@ -191,7 +191,7 @@ main = do
         loadIdentity
         let as = fromIntegral w / fromIntegral h
             sa = recip as
-        perspective 60 as 0.1 100000
+        perspective 60 as 1 10000
     
     mainLoop
 
@@ -365,16 +365,14 @@ stepHeight state = state { soyuzHeight = (soyuzHeight state) + 0.5 }
 
 stepSmoke :: State -> IO State
 stepSmoke state = do
-    [gIs,gDzs,gRs] <- replicateM 3 newStdGen
+    gDzs <- newStdGen
     let
-        [ir,iz] = take 2 $ map ftr (randomRs (0,1) gIs :: [Float])
-        dzs = map ftr (randomRs (0,0.1) gDzs :: [Float])
-        rs = map ftr (randomRs (1.5,2.4) gRs :: [Float])
-        
+        dzs = map ftr (randomRs (-0.2,0.2) gDzs :: [Float])
         ftr = fromRational . toRational
         
-        smokes = (0.1 * ir, -0.5 * iz) : zipWith f (groundSmoke state) dzs
-        f (r,z) dz = (r + 0.4, min (-0.5) (z - dz))
+        smokes = (0.01, -0.5) :
+            zipWith f (groundSmoke state) dzs
+        f (r,z) dz = (r + 0.4, min (-0.01) (z - dz))
         
         h = soyuzHeight state
         takeN = floor $ 100 - h
@@ -435,13 +433,11 @@ renderSmoke mode state = renderPrimitive mode $ do
     let
         smoke = groundSmoke state
         dt = 2 * pi / 18
-        coords = liftM2 (,) [ 0, dt .. 2 * pi - dt ] (smoke ++ [sEnd])
-        sEnd = first (+ 3) $ second (const 0) $ case smoke of
-            [] -> (0,0)
-            _ -> last smoke
+        coords = liftM2 (,) (take 18 $ iterate (+dt) 0) smoke
+        coordPairs = zip coords (tail coords ++ [head coords])
         h = soyuzHeight state
     -- connect each radial fan to its neighbor
-    forM_ (zip (last coords : coords) coords) $ \((t,(r,z)),(_,(r',z'))) -> do
+    forM_ coordPairs $ \((t,(r,z)),(_,(r',z'))) -> do
         let
             t' = t + dt
             (x0,y0) = (r * cos t, r * sin t)
