@@ -224,7 +224,16 @@ onMouseMove True state = return
         dt = 0.002
         dx = dt * (fromIntegral $ fst ppos - fst mpos)
         dy = dt * (fromIntegral $ snd ppos - snd mpos)
-        matF mat = rotation (AxisX dy) <> rotation (AxisY dx) <> mat
+        
+        mouseButton b = Set.member (MouseButton b) (keySet state)
+        
+        matF mat
+            -- left button pans left and right, up and down
+            | mouseButton LeftButton =
+                rotation (AxisX dy) <> rotation (AxisY dx) <> mat
+            -- right button skewers
+            | mouseButton RightButton = rotation (AxisZ (dx + dy)) <> mat
+            | otherwise = mat
 onMouseMove False state = return state
 
 navigate :: State -> State
@@ -250,7 +259,7 @@ display :: State -> IO State
 display state = do
     startT <- get elapsedTime
     
-    clearColor $= Color4 0.7 0.8 1.0 1
+    clearColor $= Color4 0.75 0.8 0.85 1
     clear [ ColorBuffer, DepthBuffer ]
     
     matrixMode $= Modelview 0
