@@ -15,6 +15,7 @@ import Control.Monad (liftM2,forM_,mapM_,liftM3)
 import Control.Applicative ((<$>),(<*>))
 import Control.Arrow ((&&&),first,second)
 import Data.List.Split (splitOn)
+import Data.List
 import System.Random (randomRIO,randomRs,newStdGen)
 
 import Foreign (newArray)
@@ -94,9 +95,14 @@ readObj file = do
             )
     return $ SolidData { solidFaces = faces, solidBounds = bounds }
 
+imageLoader :: FilePath -> IO GD.Image
+imageLoader file | ".png" `isSuffixOf` file = GD.loadPngFile file
+imageLoader file | ".jpg" `isSuffixOf` file = GD.loadJpegFile file
+imageLoader file = fail $ "Unknown image extension in file: " ++ file
+
 readTex :: FilePath -> IO Tex
 readTex file = do
-    im <- GD.loadPngFile file
+    im <- imageLoader file
     (width,height) <- GD.imageSize im
     let
         colorize :: GD.Color -> Color4 GLfloat
@@ -115,7 +121,7 @@ main :: IO ()
 main = do
     (_, argv) <- getArgsAndInitialize
     initialDisplayMode $= [ DoubleBuffered, RGBAMode, WithDepthBuffer ]
-    initialWindowSize $= Size 400 300
+    initialWindowSize $= Size 500 500
     initialWindowPosition $= Position 0 0
     createWindow "soyuz-u"
     
@@ -126,7 +132,11 @@ main = do
     lighting $= Disabled
     
     solid <- readObj "soyuz-u.obj"
-    tex <- readTex "soyuz-u-texture.png"
+    putStrLn "Loading soyuz texture"
+    sTex <- readTex "soyuz-u-texture.png"
+    putStrLn "Loading terrain texture"
+    
+    putStrLn "Initializing"
     
     stateVar <- newMVar $ State {
         keySet = Set.empty,
@@ -134,7 +144,7 @@ main = do
         mousePrevPos = (0,0),
         cameraMatrix = translate (3 |> [0,-40,-20])
             $ rotation (AxisX (pi / 4)),
-        soyuzTex = tex,
+        soyuzTex = sTex,
         soyuzSolid = solid,
         soyuzJet = [],
         soyuzHeight = 0,
@@ -240,7 +250,7 @@ display :: State -> IO State
 display state = do
     startT <- get elapsedTime
     
-    clearColor $= Color4 0 0 0 1
+    clearColor $= Color4 0.7 0.8 1.0 1
     clear [ ColorBuffer, DepthBuffer ]
     
     matrixMode $= Modelview 0
@@ -264,8 +274,6 @@ display state = do
 renderRocket :: State -> IO ()
 renderRocket state = do
     let
-        size = texSize (soyuzTex state)
-        (texW,texH) = (fromIntegral $ fst size, fromIntegral $ snd size)
         ((xmin,xmax),(ymin,ymax),(zmin,zmax)) = solidBounds $ soyuzSolid state
         
         triM, quadM :: MFace -> IO ()
@@ -288,7 +296,7 @@ renderRocket state = do
      
     blend $= Disabled
     preservingMatrix $ do
-        renderTerrain
+        renderTerrain state
         
         blend $= Enabled
         blendFunc $= (SrcAlpha,OneMinusSrcAlpha)
@@ -308,21 +316,34 @@ renderRocket state = do
         ($ soyuzJet state)
             $ if wireframe state then renderWireJet else renderSolidJet
 
-renderTerrain :: IO ()
-renderTerrain = renderPrimitive Triangles $ do
+-- render the terrain as a series of wedges with an image on top
+renderTerrain :: State -> IO ()
+renderTerrain state = renderPrimitive Triangles $ do
     let dt = 2 * pi / 24
     forM_ [ 0, dt .. 2 * pi ] $ \theta -> do
-        color $ (Color4 1 0 0 1 :: Color4 GLfloat)
+        color $ (Color4 0.6 0.55 0.4 1 :: Color4 GLfloat)
         normal (Normal3 0 0 1 :: Normal3 GLfloat)
         let theta' = theta + dt
             r = 100
-            x0 = r * cos theta
-            x1 = r * cos theta'
             y = 0
+            
+            x0 = r * cos theta
             z0 = r * sin theta
+            tx0 = 100 * x0 / r
+            tz0 = 100 * z0 / r
+            
+            x1 = r * cos theta'
             z1 = r * sin theta'
+            tx1 = 100 * x1 / r
+            tz1 = 100 * z1 / r
+        
+        texCoord $ TexCoord2 tx0 tz0
         vertex (Vertex3 x0 y z0 :: Vertex3 GLfloat)
+        
+        texCoord $ TexCoord2 tx1 tz1
         vertex (Vertex3 x1 y z1 :: Vertex3 GLfloat)
+        
+        texCoord (TexCoord2 0.5 0.5 :: TexCoord2 GLfloat)
         vertex (Vertex3 0 y 0 :: Vertex3 GLfloat)
 
 stepHeight :: State -> State
